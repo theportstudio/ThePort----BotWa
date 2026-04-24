@@ -7,16 +7,21 @@ const {
 } = require("@whiskeysockets/baileys")
 
 const pino = require("pino")
+const readline = require("readline")
 const fs = require("fs")
 
 const SESSION_PATH = "./session"
 
-async function connectBot({
-  pairNumber,
-  onLog,
-  onConnectionUpdate,
-  onPairingCode
-} = {}) {
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+})
+
+function question(text) {
+  return new Promise(resolve => rl.question(text, resolve))
+}
+
+async function connectBot() {
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH)
   const { version } = await fetchLatestBaileysVersion()
 
@@ -31,40 +36,54 @@ async function connectBot({
   sock.ev.on("creds.update", saveCreds)
 
   sock.ev.on("connection.update", async (update) => {
-    onConnectionUpdate?.(update)
-
     const { connection, lastDisconnect } = update
 
     if (connection === "open") {
-      onLog?.("✅ Bot berhasil terhubung ke WhatsApp")
+      console.log("✅ Bot berhasil terhubung ke WhatsApp")
+      rl.close()
     }
 
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode
 
-      if (reason === DisconnectReason.loggedOut) {
-        onLog?.("🚫 Logout terdeteksi, hapus session...")
+      if (reason !== DisconnectReason.loggedOut) {
+        console.log("⚠️ Koneksi terputus, mencoba ulang...")
+        connectBot()
+      } else {
+        console.log("🚫 Logout terdeteksi, hapus session...")
         if (fs.existsSync(SESSION_PATH)) {
           fs.rmSync(SESSION_PATH, { recursive: true, force: true })
         }
-      } else {
-        onLog?.("⚠️ Koneksi terputus. Untuk menyambung ulang, tekan tombol restart di dashboard.")
+        connectBot()
       }
     }
   })
 
-  if (!sock.authState.creds.registered && pairNumber) {
-    const cleanNumber = pairNumber.replace(/[^0-9]/g, "")
+  if (!sock.authState.creds.registered) {
+    const number = await question(
+      "📱 Masukkan nomor WhatsApp (contoh: 628xxx): "
+    )
 
-    onLog?.("⏳ Meminta pairing code...")
+    const cleanNumber = number.replace(/[^0-9]/g, "")
+
+    console.log("⏳ Meminta pairing code...")
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
     const code = await sock.requestPairingCode(cleanNumber)
     const formatted = code.match(/.{1,4}/g).join("-")
 
-    onLog?.(`🔑 Kode pairing: ${formatted}`)
-    onPairingCode?.(formatted)
+    console.log(`
+╔══════════════════════════════╗
+║      🔑 PAIRING CODE         ║
+║                              ║
+║   ${formatted}   ║
+║                              ║
+║  Masukkan di WhatsApp kamu   ║
+╚══════════════════════════════╝
+`)
   }
 
-  return { sock, state }
+  return sock
 }
 
 module.exports = connectBot
