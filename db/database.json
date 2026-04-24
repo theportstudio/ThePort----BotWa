@@ -1,13 +1,13 @@
 {
   "92204894843081": {
-    "name": "xanxz-admin",
+    "name": "zanxz",
     "userName": "Zanxz: :",
     "phoneNumber": "92204894843081",
-    "exp": 220,
-    "level": 4,
+    "exp": 160,
+    "level": 1,
     "rank": "Newbie",
-    "limit": 99987,
-    "lastLimitReset": 1776994264225,
+    "limit": 3,
+    "lastLimitReset": 1777010582173,
     "uang": 0,
     "status": "Free",
     "firstChat": "120363407746029073@g.us"

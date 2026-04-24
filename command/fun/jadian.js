@@ -9,12 +9,10 @@ const drawHeart = (ctx, x, y, size, color) => {
   ctx.scale(size / 100, size / 100);
   ctx.beginPath();
   ctx.moveTo(0, 30);
-  ctx.bezierCurveTo(0, 20, -25, 0, -50, 0);
-  ctx.bezierCurveTo(-95, 0, -95, 55, -95, 55);
-  ctx.bezierCurveTo(-95, 85, -65, 110, 0, 140);
-  ctx.bezierCurveTo(65, 110, 95, 85, 95, 55);
-  ctx.bezierCurveTo(95, 55, 95, 0, 50, 0);
-  ctx.bezierCurveTo(25, 0, 0, 20, 0, 30);
+  ctx.bezierCurveTo(0, 10, -40, -20, -80, 10);
+  ctx.bezierCurveTo(-120, 60, -40, 120, 0, 160);
+  ctx.bezierCurveTo(40, 120, 120, 60, 80, 10);
+  ctx.bezierCurveTo(40, -20, 0, 10, 0, 30);
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
@@ -23,141 +21,91 @@ const drawHeart = (ctx, x, y, size, color) => {
 
 const createCoupleCanvas = async (sock, senderId, targetId, loveMeter) => {
   const width = 800;
-  const height = 500;
+  const height = 450;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext("2d");
 
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#1a1a2e");
-  gradient.addColorStop(0.5, "#16213e");
-  gradient.addColorStop(1, "#0f3460");
-  ctx.fillStyle = gradient;
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, "#0f172a");
+  bg.addColorStop(1, "#111827");
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
-  for (let i = 0; i < 50; i++) {
-    ctx.fillStyle = `rgba(255, 105, 180, ${Math.random() * 0.3})`;
-    ctx.beginPath();
-    ctx.arc(Math.random() * width, Math.random() * height, Math.random() * 3, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  const cardW = width - 100;
+  const cardH = height - 100;
 
-  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-  ctx.shadowBlur = 30;
-  ctx.shadowOffsetY = 10;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.fillStyle = "rgba(255,255,255,0.05)";
   ctx.beginPath();
-  ctx.roundRect(40, 40, width - 80, height - 80, 20);
+  ctx.roundRect(50, 50, cardW, cardH, 20);
   ctx.fill();
-  ctx.shadowBlur = 0;
 
-  const avatarSize = 180;
-  const leftX = 150;
-  const rightX = width - 150 - avatarSize;
-  const avatarY = 120;
+  const avatarSize = 140;
+  const leftX = 170;
+  const rightX = width - 170 - avatarSize;
+  const y = 120;
 
   const loadAvatar = async (userId) => {
     try {
-      const ppUrl = await sock.profilePictureUrl(userId, "image");
-      const res = await axios.get(ppUrl, {
-        responseType: "arraybuffer",
-        timeout: 10000,
-        headers: { "User-Agent": "Mozilla/5.0" }
-      });
-      const tempPath = path.join(process.cwd(), "temp", `avatar-${Date.now()}-${userId.split("@")[0]}.jpg`);
-      fs.writeFileSync(tempPath, res.data);
-      return tempPath;
+      const pp = await sock.profilePictureUrl(userId, "image");
+      const res = await axios.get(pp, { responseType: "arraybuffer" });
+      const file = path.join(process.cwd(), `temp-${Date.now()}-${userId}.jpg`);
+      fs.writeFileSync(file, res.data);
+      return file;
     } catch {
       return null;
     }
   };
 
-  const senderAvatarPath = await loadAvatar(senderId);
-  const targetAvatarPath = await loadAvatar(targetId);
+  const senderAvatar = await loadAvatar(senderId);
+  const targetAvatar = await loadAvatar(targetId);
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(leftX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
+  const drawAvatar = async (imgPath, x, y) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x + avatarSize / 2, y + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
 
-  try {
-    const senderImg = await loadImage(senderAvatarPath);
-    ctx.drawImage(senderImg, leftX, avatarY, avatarSize, avatarSize);
-  } catch {
-    ctx.fillStyle = "#e94560";
-    ctx.fillRect(leftX, avatarY, avatarSize, avatarSize);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 80px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("?", leftX + avatarSize / 2, avatarY + avatarSize / 2 + 25);
-  }
-  ctx.restore();
+    try {
+      const img = await loadImage(imgPath);
+      ctx.drawImage(img, x, y, avatarSize, avatarSize);
+    } catch {
+      ctx.fillStyle = "#374151";
+      ctx.fillRect(x, y, avatarSize, avatarSize);
+    }
+
+    ctx.restore();
+  };
+
+  await drawAvatar(senderAvatar, leftX, y);
+  await drawAvatar(targetAvatar, rightX, y);
 
   const heartX = width / 2;
-  const heartY = avatarY + avatarSize / 2;
-  const pulse = 1 + Math.sin(Date.now() / 200) * 0.1;
-  drawHeart(ctx, heartX, heartY, 80 * pulse, "#ff1744");
+  const heartY = y + 70;
+
+  drawHeart(ctx, heartX, heartY, 60, "#f43f5e");
 
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 24px Arial";
+  ctx.font = "bold 22px Arial";
   ctx.textAlign = "center";
-  ctx.fillText(`${loveMeter}%`, heartX, heartY + 10);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(rightX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-
-  try {
-    const targetImg = await loadImage(targetAvatarPath);
-    ctx.drawImage(targetImg, rightX, avatarY, avatarSize, avatarSize);
-  } catch {
-    ctx.fillStyle = "#e94560";
-    ctx.fillRect(rightX, avatarY, avatarSize, avatarSize);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 80px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("?", rightX + avatarSize / 2, avatarY + avatarSize / 2 + 25);
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = "#ff1744";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(leftX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 8, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(rightX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 8, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.fillText(`${loveMeter}%`, heartX, heartY + 15);
 
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 36px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("COUPLE MATCH", width / 2, 360);
+  ctx.font = "bold 20px Arial";
+  ctx.fillText("LOVE MATCH", width / 2, 360);
 
-  ctx.fillStyle = "#ff6b9d";
-  ctx.font = "italic 24px Arial";
-  ctx.fillText("Semoga langgeng!", width / 2, 400);
+  const barW = 300;
+  const barX = (width - barW) / 2;
+  const barY = 390;
 
-  const progressWidth = 400;
-  const progressHeight = 20;
-  const progressX = (width - progressWidth) / 2;
-  const progressY = 430;
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.fillStyle = "rgba(255,255,255,0.1)";
   ctx.beginPath();
-  ctx.roundRect(progressX, progressY, progressWidth, progressHeight, 10);
+  ctx.roundRect(barX, barY, barW, 10, 10);
   ctx.fill();
 
-  const loveGradient = ctx.createLinearGradient(progressX, progressY, progressX + progressWidth * (loveMeter / 100), progressY);
-  loveGradient.addColorStop(0, "#ff1744");
-  loveGradient.addColorStop(1, "#ff6b9d");
-
-  ctx.fillStyle = loveGradient;
+  ctx.fillStyle = "#f43f5e";
   ctx.beginPath();
-  ctx.roundRect(progressX, progressY, progressWidth * (loveMeter / 100), progressHeight, 10);
+  ctx.roundRect(barX, barY, barW * (loveMeter / 100), 10, 10);
   ctx.fill();
 
   const tempDir = path.join(process.cwd(), "temp");
@@ -166,14 +114,53 @@ const createCoupleCanvas = async (sock, senderId, targetId, loveMeter) => {
   const outputPath = path.join(tempDir, `couple-${Date.now()}.png`);
   fs.writeFileSync(outputPath, canvas.toBuffer("image/png"));
 
-  if (senderAvatarPath && fs.existsSync(senderAvatarPath)) {
-    try { fs.unlinkSync(senderAvatarPath); } catch {}
-  }
-  if (targetAvatarPath && fs.existsSync(targetAvatarPath)) {
-    try { fs.unlinkSync(targetAvatarPath); } catch {}
-  }
+  if (senderAvatar && fs.existsSync(senderAvatar)) fs.unlinkSync(senderAvatar);
+  if (targetAvatar && fs.existsSync(targetAvatar)) fs.unlinkSync(targetAvatar);
 
   return outputPath;
+};
+
+module.exports = {
+  name: "jadian",
+  alias: ["couple", "match"],
+
+  async execute(ctx) {
+    let imagePath;
+
+    try {
+      const group = await ctx.sock.groupMetadata(ctx.from);
+      const participants = group.participants;
+
+      const senderId = ctx.sender;
+
+      let targetId;
+
+      const mentioned = ctx.msg.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+
+      if (mentioned?.length) {
+        targetId = mentioned[0];
+      } else {
+        const filtered = participants.filter(p => p.id !== senderId);
+        targetId = filtered[Math.floor(Math.random() * filtered.length)].id;
+      }
+
+      const love = Math.floor(Math.random() * 40) + 60;
+
+      imagePath = await createCoupleCanvas(ctx.sock, senderId, targetId, love);
+
+      await ctx.sock.sendMessage(ctx.from, {
+        image: fs.readFileSync(imagePath),
+        caption: `❤️ MATCH FOUND\n\n@${senderId.split("@")[0]} ❤ @${targetId.split("@")[0]}\nCocok: ${love}%`,
+        mentions: [senderId, targetId]
+      }, { quoted: ctx.msg });
+
+    } catch (e) {
+      console.error(e);
+      await ctx.reply("Error saat membuat jadian.");
+    } finally {
+      if (imagePath && fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+    }
+  }
 };
 
 module.exports = {

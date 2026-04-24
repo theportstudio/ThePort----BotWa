@@ -17,14 +17,25 @@ module.exports = {
 
     if (!name) {
       return ctx.reply(
-        "❌ Nama belum diisi\n\n" +
-        "📌 Contoh penggunaan:\n" +
-        "*.login " + waName + "*"
+        "❌ Nama belum diisi\n\n📌 Contoh:\n.login " + waName
       )
     }
 
     if (name.length < 3) {
       return ctx.reply("❌ Nama minimal 3 karakter")
+    }
+
+    const allowedPattern = /^[a-zA-Z0-9_-]+$/
+
+    if (!allowedPattern.test(name)) {
+      return ctx.reply(
+        "❌ Nama hanya boleh mengandung:\n" +
+        "- huruf (a-z)\n" +
+        "- angka (0-9)\n" +
+        "- underscore (_)\n" +
+        "- strip (-)\n\n" +
+        "🚫 Tidak boleh ada emoji atau simbol lain"
+      )
     }
 
     if (ctx.user.name) {
@@ -62,7 +73,7 @@ module.exports = {
       `👤 Nama : *${name}*\n` +
       `📱 ID : *${phoneNumber}*\n` +
       `💎 Status : *Free*\n\n` +
-      "Data tersimpan permanen untuk nomor ini 🎉"
+      "Data tersimpan permanen 🎉"
     )
   }
 }
