@@ -1,1 +1,16 @@
-{}
+{
+  "120363407286754235@g.us": {
+    "antilink": true,
+    "alert": false,
+    "antivirtex": false,
+    "antimedia": false,
+    "antisticker": false,
+    "antitagsw": false,
+    "openTime": null,
+    "closeTime": null,
+    "lockTime": null,
+    "unlockTime": null,
+    "customWelcome": null,
+    "customOut": null
+  }
+}
