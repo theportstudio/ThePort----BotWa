@@ -1,3 +1,9 @@
+const {
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  proto
+} = require("@whiskeysockets/baileys")
+
 module.exports = {
   name: "youtubesearch",
   alias: ["yts", "ytsearch"],
@@ -6,6 +12,7 @@ module.exports = {
   async execute(ctx) {
     try {
       const input = ctx.args.join(" ").trim()
+
       if (!input) {
         return ctx.reply(
           "💡 Gunakan:\n*.youtubesearch <judul video>*\nContoh: *.youtubesearch tutorial javascript*"
@@ -14,8 +21,12 @@ module.exports = {
 
       await ctx.sock.sendMessage(
         ctx.from,
-        { text: "⏳ Mencari video di YouTube..." },
-        { quoted: ctx.msg }
+        {
+          react: {
+            text: "🔍",
+            key: ctx.msg.key
+          }
+        }
       )
 
       const apiUrl = `https://api.deline.web.id/search/youtube?q=${encodeURIComponent(input)}`
@@ -23,53 +34,119 @@ module.exports = {
       const data = await res.json()
 
       if (!data?.status || !Array.isArray(data.result) || data.result.length === 0) {
-        throw new Error("Video tidak ditemukan")
+        return ctx.reply("❌ Video tidak ditemukan.")
       }
 
-      const results = data.result.slice(0, 10)
+      const results = data.result
+        .filter(v => v?.title && v?.link && v?.imageUrl)
+        .slice(0, 5)
+
+      if (results.length === 0) {
+        return ctx.reply("❌ Tidak ada hasil valid.")
+      }
+
       const prefix = global.settings?.prefix || "."
+      const cards = []
 
-      let caption =
-        `✨ *YOUTUBE SEARCH* ✨\n` +
-        `🔎 *Query:* ${input}\n` +
-        `📊 *Menampilkan:* ${results.length} hasil\n\n`
+      for (let i = 0; i < results.length; i++) {
+        const item = results[i]
 
-      results.forEach((v, i) => {
-        caption +=
-          `*${i + 1}. ${v.title}*\n` +
-          `👤 ${v.channel}\n` +
-          `⏱ ${v.duration}\n` +
-          `🔗 ${v.link}\n\n` +
-          `▶️ Video:\n` +
-          `\`\`\`${prefix}ytmp4 ${v.link}\`\`\`\n` +
-          `🎵 Audio:\n` +
-          `\`\`\`${prefix}ytmp3 ${v.link}\`\`\`\n\n` +
-          `──────────────\n\n`
-      })
+        const media = await prepareWAMessageMedia(
+          {
+            image: {
+              url: item.imageUrl
+            }
+          },
+          {
+            upload: ctx.sock.waUploadToServer
+          }
+        )
 
-      const first = results[0]
+        cards.push({
+          header: {
+            hasMediaAttachment: true,
+            ...media
+          },
+          body: {
+            text:
+`🎬 ${item.title.slice(0, 80)}
 
-      await ctx.sock.sendMessage(
+👤 ${item.channel || "Unknown"}
+⏱ ${item.duration || "-"}
+⬇ ${prefix}ytmp4 ${item.link}
+⬇ ${prefix}ytmp3 ${item.link}`
+          },
+          footer: {
+            text: "YouTube Search"
+          },
+          nativeFlowMessage: {
+            buttons: [
+              {
+                name: "cta_url",
+                buttonParamsJson: JSON.stringify({
+                  display_text: "Buka YouTube",
+                  url: item.link,
+                  merchant_url: item.link
+                })
+              }
+            ]
+          }
+        })
+      }
+
+      const msg = generateWAMessageFromContent(
         ctx.from,
-        {
-          image: { url: first.imageUrl },
-          caption,
-          contextInfo: {
-            externalAdReply: {
-              title: first.title,
-              body: `Hasil pencarian: ${results.length} video`,
-              thumbnailUrl: first.imageUrl,
-              sourceUrl: first.link,
-              mediaType: 1,
-              renderLargerThumbnail: true
+        proto.Message.fromObject({
+          viewOnceMessage: {
+            message: {
+              interactiveMessage: {
+                body: {
+                  text: `🎬 Hasil YouTube Search: ${input}`
+                },
+                footer: {
+                  text: "ThePort"
+                },
+                header: {
+                  hasMediaAttachment: false
+                },
+                carouselMessage: {
+                  cards
+                }
+              }
             }
           }
-        },
-        { quoted: ctx.msg }
+        }),
+        {
+          quoted: ctx.msg,
+          userJid: ctx.sock.user.id
+        }
       )
 
+      await ctx.sock.relayMessage(
+        ctx.from,
+        msg.message,
+        {
+          messageId: msg.key.id
+        }
+      )
+
+      await ctx.sock.sendMessage(ctx.from, {
+        react: {
+          text: "✅",
+          key: ctx.msg.key
+        }
+      })
+
     } catch (err) {
-      console.error("Error di youtubesearch:", err)
+      console.error("YOUTUBE SEARCH ERROR:", err)
+
+      await ctx.sock.sendMessage(ctx.from, {
+        react: {
+          text: "❌",
+          key: ctx.msg.key
+        }
+      })
+
       await ctx.reply("❌ Terjadi kesalahan saat mencari video. Coba lagi nanti.")
     }
   }

@@ -1,6 +1,9 @@
 const axios = require("axios")
-
-const sentVideos = new Map()
+const {
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  proto
+} = require("@whiskeysockets/baileys")
 
 module.exports = {
   name: "tiktoksearch",
@@ -9,122 +12,135 @@ module.exports = {
 
   async execute(ctx) {
     try {
-      const text = ctx.args.join(" ")
+      const text = ctx.args.join(" ").trim()
+
       if (!text) {
-        return ctx.reply("💡 Masukkan kata kunci pencarian!\nContoh: *.tiktoksearch dance*")
+        return ctx.reply("💡 Contoh: *.tiktoksearch dance*")
       }
 
       await ctx.sock.sendMessage(ctx.from, {
-        react: { text: "🔍", key: ctx.msg.key }
+        react: {
+          text: "🔍",
+          key: ctx.msg.key
+        }
       })
 
-      const apiUrl = `https://api.danzy.web.id/api/search/tiktok?q=${encodeURIComponent(text)}`
-      const res = await axios.get(apiUrl)
+      const { data } = await axios.get(
+        `https://api-faa.my.id/faa/tiktok-search?q=${encodeURIComponent(text)}`
+      )
 
-      if (!res.data.status || !res.data.result || res.data.result.length === 0) {
+      if (!data?.status || !Array.isArray(data.result) || data.result.length === 0) {
         return ctx.reply("❌ Video TikTok tidak ditemukan.")
       }
 
-      const videos = res.data.result
-      const cacheKey = `${ctx.from}_${text.toLowerCase()}`
-      const lastSentIndex = sentVideos.get(cacheKey) || -1
+      const videos = data.result
+        .filter(v => v?.cover && v?.url_nowm)
+        .slice(0, 5)
 
-      let selectedVideo = null
-      let selectedIndex = 0
+      if (videos.length === 0) {
+        return ctx.reply("❌ Tidak ada video valid.")
+      }
+
+      const cards = []
 
       for (let i = 0; i < videos.length; i++) {
-        const index = (lastSentIndex + 1 + i) % videos.length
-        const video = videos[index]
-        const rawUrl = video.link || video.watermark_link || ""
-        const videoId = rawUrl.replace("https://tikwm.com", "")
+        const item = videos[i]
 
-        if (!sentVideos.has(videoId)) {
-          selectedVideo = video
-          selectedIndex = index
-          sentVideos.set(videoId, true)
-          break
-        }
+        const media = await prepareWAMessageMedia(
+          {
+            image: {
+              url: item.cover
+            }
+          },
+          {
+            upload: ctx.sock.waUploadToServer
+          }
+        )
+
+        cards.push({
+          header: {
+            hasMediaAttachment: true,
+            ...media
+          },
+          body: {
+            text:
+`🎵 ${item.title?.slice(0, 80) || "No Title"}
+
+👤 ${item.author?.nickname || "Unknown"}
+👁️ ${item.stats?.views || 0} views`
+          },
+          footer: {
+            text: "TikTok Search"
+          },
+          nativeFlowMessage: {
+            buttons: [
+              {
+                name: "cta_url",
+                buttonParamsJson: JSON.stringify({
+                  display_text: "Buka TikTok",
+                  url: item.url_nowm,
+                  merchant_url: item.url_nowm
+                })
+              }
+            ]
+          }
+        })
       }
 
-      if (!selectedVideo) {
-        sentVideos.clear()
-        selectedVideo = videos[0]
-        selectedIndex = 0
-        const rawUrl = selectedVideo.link || selectedVideo.watermark_link || ""
-        const videoId = rawUrl.replace("https://tikwm.com", "")
-        sentVideos.set(videoId, true)
-      }
-
-      sentVideos.set(cacheKey, selectedIndex)
-
-      const title = selectedVideo.title || "No Title"
-      const author = selectedVideo.author?.nickname || "Unknown"
-      const plays = selectedVideo.stats?.plays || 0
-      const likes = selectedVideo.stats?.likes || 0
-      const comments = selectedVideo.stats?.comments || 0
-      const shares = selectedVideo.stats?.shares || 0
-      const cover = selectedVideo.cover || ""
-
-      let videoUrl = selectedVideo.link || selectedVideo.watermark_link || ""
-      videoUrl = videoUrl.replace("https://tikwm.comhttps://", "https://")
-      videoUrl = videoUrl.replace("https://tikwm.comhttp://", "http://")
-
-      const videoResponse = await axios.get(videoUrl, {
-        responseType: "arraybuffer",
-        timeout: 30000,
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-      })
-
-      const videoBuffer = Buffer.from(videoResponse.data)
-
-      const caption = `🎵 *TikTok Search*
-
-📌 ${title}
-👤 ${author}
-
-📊 *Stats:*
-▸ 👁️ ${plays.toLocaleString()} views
-▸ ❤️ ${likes.toLocaleString()} likes
-▸ 💬 ${comments.toLocaleString()} comments
-▸ 🔄 ${shares.toLocaleString()} shares
-
-AutoBot • FarelDev`
-
-      const mentions = []
-
-      await ctx.sock.sendMessage(
+      const msg = generateWAMessageFromContent(
         ctx.from,
-        {
-          video: videoBuffer,
-          caption: caption,
-          mentions: mentions,
-          contextInfo: {
-            mentionedJid: mentions,
-            externalAdReply: {
-              title: `AutoBot v1.0`,
-              body: `Made By Farel Alfareza`,
-              thumbnailUrl: cover,
-              sourceUrl: "https://github.com/fareldev-hub",
-              mediaType: 1,
-              renderLargerThumbnail: true
+        proto.Message.fromObject({
+          viewOnceMessage: {
+            message: {
+              interactiveMessage: {
+                body: {
+                  text: `✨ Hasil TikTok Search: ${text}`
+                },
+                footer: {
+                  text: "ThePort"
+                },
+                header: {
+                  hasMediaAttachment: false
+                },
+                carouselMessage: {
+                  cards
+                }
+              }
             }
           }
-        },
-        { quoted: ctx.msg }
+        }),
+        {
+          quoted: ctx.msg,
+          userJid: ctx.sock.user.id
+        }
+      )
+
+      await ctx.sock.relayMessage(
+        ctx.from,
+        msg.message,
+        {
+          messageId: msg.key.id
+        }
       )
 
       await ctx.sock.sendMessage(ctx.from, {
-        react: { text: "✅", key: ctx.msg.key }
+        react: {
+          text: "✅",
+          key: ctx.msg.key
+        }
       })
 
     } catch (err) {
-      console.error("TIKTOK SEARCH ERROR:", err)
+      console.log("TIKTOK CAROUSEL ERROR:", err?.message || err)
+
       await ctx.sock.sendMessage(ctx.from, {
-        react: { text: "❌", key: ctx.msg.key }
+        react: {
+          text: "❌",
+          key: ctx.msg.key
+        }
       })
-      await ctx.reply("⚠️ Gagal mengambil video TikTok.")
+
+      return ctx.reply("⚠️ Gagal mengambil video TikTok.")
     }
   }
 }

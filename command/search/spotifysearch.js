@@ -1,4 +1,11 @@
 const axios = require("axios")
+const {
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  proto
+} = require("@whiskeysockets/baileys")
+
+const prefix = global.settings?.prefix || "."
 
 module.exports = {
   name: "spotifysearch",
@@ -15,71 +22,166 @@ module.exports = {
           {
             text: "⚠️ Gunakan: .spotifysearch <nama lagu / artis>"
           },
-          { quoted: ctx.msg }
+          {
+            quoted: ctx.msg
+          }
         )
       }
 
       await ctx.sock.sendMessage(
         ctx.from,
         {
-          text: `⏳ Mencari lagu Spotify untuk: *${query}*...`
-        },
-        { quoted: ctx.msg }
+          react: {
+            text: "🎵",
+            key: ctx.msg.key
+          }
+        }
       )
 
-      const apiUrl = `https://api.nexray.web.id/search/spotify?q=${encodeURIComponent(query)}`
-      const res = await axios.get(apiUrl)
-      const results = res.data.result
+      const { data } = await axios.get(
+        `https://api.nexray.web.id/search/spotify?q=${encodeURIComponent(query)}`
+      )
 
-      if (!results || !Array.isArray(results) || results.length === 0) {
+      const results = data?.result
+
+      if (!Array.isArray(results) || results.length === 0) {
         return ctx.sock.sendMessage(
           ctx.from,
           {
             text: "⚠️ Lagu tidak ditemukan."
           },
-          { quoted: ctx.msg }
+          {
+            quoted: ctx.msg
+          }
         )
       }
 
-      const topResults = results.slice(0, 5)
+      const topResults = results
+        .filter(item =>
+          item &&
+          item.title &&
+          item.artist &&
+          item.url &&
+          item.thumbnail
+        )
+        .slice(0, 5)
 
-      const imageRes = await axios.get(topResults[0].thumbnail, {
-        responseType: "arraybuffer"
+      if (topResults.length === 0) {
+        return ctx.reply("⚠️ Tidak ada hasil valid.")
+      }
+
+      const cards = []
+
+      for (let i = 0; i < topResults.length; i++) {
+        const track = topResults[i]
+
+        const media = await prepareWAMessageMedia(
+          {
+            image: {
+              url: track.thumbnail
+            }
+          },
+          {
+            upload: ctx.sock.waUploadToServer
+          }
+        )
+
+        cards.push({
+          header: {
+            hasMediaAttachment: true,
+            ...media
+          },
+          body: {
+            text:
+`🎵 ${track.title.slice(0, 80)}
+
+🎤 ${track.artist || "-"}
+💿 ${track.album || "-"}
+⏱ ${track.duration || "-"}
+⬇ ${prefix}spotifydl ${track.url}`
+          },
+          footer: {
+            text: "Spotify Search"
+          },
+          nativeFlowMessage: {
+            buttons: [
+              {
+                name: "cta_url",
+                buttonParamsJson: JSON.stringify({
+                  display_text: "Buka Spotify",
+                  url: track.url,
+                  merchant_url: track.url
+                })
+              }
+            ]
+          }
+        })
+      }
+
+      const msg = generateWAMessageFromContent(
+        ctx.from,
+        proto.Message.fromObject({
+          viewOnceMessage: {
+            message: {
+              interactiveMessage: {
+                body: {
+                  text: `🎧 Hasil Spotify Search: ${query}`
+                },
+                footer: {
+                  text: "ThePort"
+                },
+                header: {
+                  hasMediaAttachment: false
+                },
+                carouselMessage: {
+                  cards
+                }
+              }
+            }
+          }
+        }),
+        {
+          quoted: ctx.msg,
+          userJid: ctx.sock.user.id
+        }
+      )
+
+      await ctx.sock.relayMessage(
+        ctx.from,
+        msg.message,
+        {
+          messageId: msg.key.id
+        }
+      )
+
+      await ctx.sock.sendMessage(ctx.from, {
+        react: {
+          text: "✅",
+          key: ctx.msg.key
+        }
       })
 
-      const imageBuffer = Buffer.from(imageRes.data)
-
-      let caption = `🎵 *SPOTIFY SEARCH RESULT*\n`
-      caption += `🔎 Query: ${query}\n\n`
-
-      topResults.forEach((track, index) => {
-        caption += `*${index + 1}. ${track.title}*\n`
-        caption += `🎤 Artist : ${track.artist}\n`
-        caption += `💿 Album : ${track.album}\n`
-        caption += `⏱ Duration : ${track.duration}\n`
-        caption += `📆 Release : ${track.release_date}\n`
-        caption += `🔥 Popularity : ${track.popularity}\n`
-        caption += `🔗 ${track.url}\n\n`
-      })
+    } catch (err) {
+      console.error("SPOTIFY SEARCH ERROR:", err)
 
       await ctx.sock.sendMessage(
         ctx.from,
         {
-          image: imageBuffer,
-          caption
-        },
-        { quoted: ctx.msg }
+          react: {
+            text: "❌",
+            key: ctx.msg.key
+          }
+        }
       )
-
-    } catch (err) {
-      console.error("SPOTIFYSEARCH ERROR:", err)
 
       await ctx.sock.sendMessage(
         ctx.from,
         {
           text: "⚠️ Gagal mencari lagu Spotify."
         },
-        { quoted: ctx.msg }
+        {
+          quoted: ctx.msg
+        }
       )
     }
   }
