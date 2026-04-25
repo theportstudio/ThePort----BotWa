@@ -182,35 +182,35 @@ async function sendWelcomeMessage(sock, groupId, participant, groupMetadata) {
 
   let messageText
   let mentions = []
-  
+
   if (groupData?.customWelcome) {
     let customText = groupData.customWelcome
-    
+
     customText = customText.replace(/<tag>/gi, `@${userNumber}`)
     customText = customText.replace(/<user>/gi, `@${userNumber}`)
     customText = customText.replace(/<username>/gi, userNumber)
     customText = customText.replace(/<group-name>/gi, groupName)
-    
+
     const admins = groupMetadata.participants
       .filter(p => p.admin === "admin" || p.admin === "superadmin")
       .map(p => `@${cleanJid(p.id)}`)
-    
+
     const allMembers = groupMetadata.participants
       .map(p => `@${cleanJid(p.id)}`)
-    
+
     customText = customText.replace(/<admin>/gi, admins.join(" "))
     customText = customText.replace(/<alltag>/gi, allMembers.join(" "))
-    
+
     messageText = customText
-    
+
     mentions.push(participantJid)
-    
+
     const allMentions = groupMetadata.participants.map(p => p.id)
     mentions = [...new Set([...mentions, ...allMentions])]
   } else {
     messageText = `Welcome to ${groupName}\n@${userNumber}`
     mentions.push(participantJid)
-    
+
     const allMentions = groupMetadata.participants.map(p => p.id)
     mentions = [...new Set([...mentions, ...allMentions])]
   }
@@ -241,35 +241,35 @@ async function sendOutMessage(sock, groupId, participant, groupMetadata) {
 
   let messageText
   let mentions = []
-  
+
   if (groupData?.customOut) {
     let customText = groupData.customOut
-    
+
     customText = customText.replace(/<tag>/gi, `@${userNumber}`)
     customText = customText.replace(/<user>/gi, `@${userNumber}`)
     customText = customText.replace(/<username>/gi, userNumber)
     customText = customText.replace(/<group-name>/gi, groupName)
-    
+
     const admins = groupMetadata.participants
       .filter(p => p.admin === "admin" || p.admin === "superadmin")
       .map(p => `@${cleanJid(p.id)}`)
-    
+
     const allMembers = groupMetadata.participants
       .map(p => `@${cleanJid(p.id)}`)
-    
+
     customText = customText.replace(/<admin>/gi, admins.join(" "))
     customText = customText.replace(/<alltag>/gi, allMembers.join(" "))
-    
+
     messageText = customText
-    
+
     mentions.push(participantJid)
-    
+
     const allMentions = groupMetadata.participants.map(p => p.id)
     mentions = [...new Set([...mentions, ...allMentions])]
   } else {
     messageText = `@${userNumber}\nLeaving From ${groupName}`
     mentions.push(participantJid)
-    
+
     const allMentions = groupMetadata.participants.map(p => p.id)
     mentions = [...new Set([...mentions, ...allMentions])]
   }
@@ -292,20 +292,20 @@ async function sendOutMessage(sock, groupId, participant, groupMetadata) {
 
 async function handleGroupParticipantsUpdate(sock, update) {
   const { id, participants, action } = update
-  
+
   console.log(chalk.blue(`[GROUP EVENT] ${action} | ${id} | ${participants.join(', ')}`))
-  
+
   try {
     const groupDB = getGroupDB()
     const groupData = getGroupData(groupDB, id)
-    
+
     if (!groupData.alert) {
       console.log(chalk.gray(`[ALERT OFF] Skipping welcome/out for ${id}`))
       return
     }
-    
+
     const groupMetadata = await sock.groupMetadata(id)
-    
+
     for (const participant of participants) {
       if (action === 'add' || action === 'invite') {
         await sendWelcomeMessage(sock, id, participant, groupMetadata)
@@ -328,10 +328,10 @@ const messageHandler = async (sock, msg) => {
     if (msg.messageStubType) {
       const groupId = from
       const participant = msg.messageStubParameters?.[0]
-      
+
       const groupDB = getGroupDB()
       const groupData = getGroupData(groupDB, groupId)
-      
+
       if (!groupData.alert) return
 
       if (msg.messageStubType === 32) {
@@ -376,19 +376,78 @@ const messageHandler = async (sock, msg) => {
     if (from.endsWith("@g.us") && !isFromMe) {
       try {
         const groupMetadata = await sock.groupMetadata(from)
-        const botId = sock.user.id.replace(/:\d+/, "")
-        const isBotAdmin = groupMetadata.participants.some(p => p.id.replace(/:\d+/, "") === botId && p.admin)
+        const botNumber = cleanJid(sock.user.id)
+        const botLid = sock.user.lid ? cleanJid(sock.user.lid) : null
+
+        let isBotAdmin = false
+        let botParticipant = null
+
+        for (const p of groupMetadata.participants) {
+          const pCleanId = cleanJid(p.id)
+          const pLid = p.lid ? cleanJid(p.lid) : null
+
+          const isBotMatch =
+            pCleanId === botNumber ||
+            pLid === botNumber ||
+            pCleanId === botLid ||
+            pLid === botLid
+
+          if (isBotMatch) {
+            botParticipant = p
+
+            if (
+              p.admin === "admin" ||
+              p.admin === "superadmin"
+            ) {
+              isBotAdmin = true
+              break
+            }
+          }
+        }
+
+        console.log("BOT NUMBER:", botNumber)
+        console.log("BOT LID:", botLid)
+        console.log("BOT PARTICIPANT:", botParticipant)
+        console.log("BOT ADMIN STATUS:", isBotAdmin)
 
         if (groupData.antilink && text) {
-          const linkRegex = /(https?:\/\/|www\.)?(chat\.whatsapp\.com\/[a-zA-Z0-9]+|wa\.me\/[0-9]+|whatsapp\.com\/[a-zA-Z0-9]+)/gi
+          const linkRegex = /(https?:\/\/|www\.)?(chat\.whatsapp\.com\/[A-Za-z0-9]+|wa\.me\/[0-9]+|whatsapp\.com\/[A-Za-z0-9]+)/gi
+
           if (linkRegex.test(text)) {
-            if (isBotAdmin) {
-              await sock.sendMessage(from, { delete: msg.key })
+            if (!isBotAdmin) {
+              console.log("Bot bukan admin, tidak bisa hapus pesan")
+              return
+            }
+
+            try {
+              const deleteParticipant =
+                msg.key.participant ||
+                msg.participant ||
+                msg.key.remoteJid
+
+              console.log("DELETE TARGET:", {
+                remoteJid: from,
+                id: msg.key.id,
+                participant: deleteParticipant
+              })
+
+              await sock.sendMessage(from, {
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: msg.key.id,
+                  participant: deleteParticipant
+                }
+              })
+
               await sock.sendMessage(from, {
                 text: `⚠️ @${sender.split("@")[0]} Link tidak diizinkan di group ini!`,
                 mentions: [sender]
               })
+
               return
+            } catch (err) {
+              console.log("Gagal menghapus pesan:", err)
             }
           }
         }
@@ -401,65 +460,179 @@ const messageHandler = async (sock, msg) => {
             /[\u200B-\u200D\uFEFF]{100,}/,
             /[̲̅]/
           ]
-          const isVirtex = virtexPatterns.some(pattern => pattern.test(text)) || text.length > 5000
-          
+
+          const isVirtex =
+            virtexPatterns.some(pattern => pattern.test(text)) ||
+            text.length > 5000
+
           if (isVirtex) {
-            if (isBotAdmin) {
-              await sock.sendMessage(from, { delete: msg.key })
+            if (!isBotAdmin) {
+              console.log("Bot bukan admin, tidak bisa hapus pesan virtex")
+              return
+            }
+
+            try {
+              const deleteParticipant =
+                msg.key.participant ||
+                msg.participant ||
+                msg.key.remoteJid
+
+              console.log("DELETE VIRTEX TARGET:", {
+                remoteJid: from,
+                id: msg.key.id,
+                participant: deleteParticipant
+              })
+
               await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Virtex/Teks berbahaya terdeteksi dan dihapus!`,
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: msg.key.id,
+                  participant: deleteParticipant
+                }
+              })
+
+              await sock.sendMessage(from, {
+                text: `⚠️ @${sender.split("@")[0]} Virtex / teks berbahaya terdeteksi dan telah dihapus!`,
                 mentions: [sender]
               })
+
               return
+            } catch (err) {
+              console.log("Gagal menghapus pesan virtex:", err)
             }
           }
         }
 
         if (groupData.antimedia) {
-          const isViewOnce = msg.message?.imageMessage?.viewOnce || 
-                             msg.message?.videoMessage?.viewOnce ||
-                             msg.message?.audioMessage?.viewOnce
-          
+          const isViewOnce =
+            msg.message?.imageMessage?.viewOnce ||
+            msg.message?.videoMessage?.viewOnce ||
+            msg.message?.audioMessage?.viewOnce
+
           if ((hasImage || hasVideo || hasDocument) && !isViewOnce) {
-            if (isBotAdmin) {
-              await sock.sendMessage(from, { delete: msg.key })
+            if (!isBotAdmin) {
+              console.log("Bot bukan admin, tidak bisa hapus media")
+              return
+            }
+
+            try {
+              const deleteParticipant =
+                msg.key.participant ||
+                msg.participant ||
+                msg.key.remoteJid
+
+              console.log("DELETE MEDIA TARGET:", {
+                remoteJid: from,
+                id: msg.key.id,
+                participant: deleteParticipant
+              })
+
               await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Media tidak diizinkan! Hanya viewonce yang diperbolehkan.`,
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: msg.key.id,
+                  participant: deleteParticipant
+                }
+              })
+
+              await sock.sendMessage(from, {
+                text: `⚠️ @${sender.split("@")[0]} Media tidak diizinkan! Hanya view once yang diperbolehkan.`,
                 mentions: [sender]
               })
+
               return
+            } catch (err) {
+              console.log("Gagal menghapus media:", err)
             }
           }
         }
 
         if (groupData.antisticker && hasSticker) {
-          if (isBotAdmin) {
-            await sock.sendMessage(from, { delete: msg.key })
+          if (!isBotAdmin) {
+            console.log("Bot bukan admin, tidak bisa hapus sticker")
+            return
+          }
+
+          try {
+            const deleteParticipant =
+              msg.key.participant ||
+              msg.participant ||
+              msg.key.remoteJid
+
+            console.log("DELETE STICKER TARGET:", {
+              remoteJid: from,
+              id: msg.key.id,
+              participant: deleteParticipant
+            })
+
+            await sock.sendMessage(from, {
+              delete: {
+                remoteJid: from,
+                fromMe: false,
+                id: msg.key.id,
+                participant: deleteParticipant
+              }
+            })
+
             await sock.sendMessage(from, {
               text: `⚠️ @${sender.split("@")[0]} Sticker tidak diizinkan di group ini!`,
               mentions: [sender]
             })
+
             return
+          } catch (err) {
+            console.log("Gagal menghapus sticker:", err)
           }
         }
 
         if (groupData.antitagsw) {
-          const hasStatusMention = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.some(jid => jid.includes("status@broadcast")) ||
-                                   msg.message?.imageMessage?.contextInfo?.mentionedJid?.some(jid => jid.includes("status@broadcast")) ||
-                                   msg.message?.videoMessage?.contextInfo?.mentionedJid?.some(jid => jid.includes("status@broadcast"))
+          const contextInfo =
+            msg.message?.extendedTextMessage?.contextInfo ||
+            msg.message?.imageMessage?.contextInfo ||
+            msg.message?.videoMessage?.contextInfo ||
+            msg.message?.documentMessage?.contextInfo ||
+            {}
 
-          const isStatusForward = msg.message?.extendedTextMessage?.contextInfo?.forwardedNewsletterMessageInfo ||
-                                  msg.message?.imageMessage?.contextInfo?.forwardedNewsletterMessageInfo ||
-                                  msg.message?.videoMessage?.contextInfo?.forwardedNewsletterMessageInfo
+          const mentionedJid = contextInfo.mentionedJid || []
 
-          if (hasStatusMention || isStatusForward) {
-            if (isBotAdmin) {
-              await sock.sendMessage(from, { delete: msg.key })
+          const hasStatusMention = mentionedJid.some(
+            jid => jid.includes("status@broadcast")
+          )
+
+          const isQuotedStatus =
+            contextInfo.remoteJid === "status@broadcast" ||
+            contextInfo.participant === "status@broadcast"
+
+          const isStatusMessage = from === "status@broadcast"
+
+          if (hasStatusMention || isQuotedStatus || isStatusMessage) {
+            if (!isBotAdmin) return
+
+            try {
+              const deleteParticipant =
+                msg.key.participant ||
+                msg.participant ||
+                sender
+
               await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Tag status WhatsApp tidak diizinkan di group ini!`,
+                delete: {
+                  remoteJid: from,
+                  fromMe: false,
+                  id: msg.key.id,
+                  participant: deleteParticipant
+                }
+              })
+
+              await sock.sendMessage(from, {
+                text: `⚠️ @${sender.split("@")[0]} Tag status WhatsApp (SW) tidak diperbolehkan di grup ini!`,
                 mentions: [sender]
               })
+
               return
+            } catch (err) {
+              console.error("Error AntiTagSW:", err)
             }
           }
         }

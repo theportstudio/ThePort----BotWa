@@ -4,7 +4,7 @@ const settings = require("../../settings")
 
 const groupDBPath = path.join(process.cwd(), "db/group_database.json")
 
-function getGroupDB() {
+function getGroupDB() { 
   if (!fs.existsSync(groupDBPath)) {
     fs.writeFileSync(groupDBPath, JSON.stringify({}, null, 2))
   }

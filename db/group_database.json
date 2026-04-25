@@ -1,11 +1,11 @@
 {
-  "120363407286754235@g.us": {
+  "120363410138856054@g.us": {
     "antilink": true,
     "alert": false,
     "antivirtex": false,
     "antimedia": false,
-    "antisticker": false,
-    "antitagsw": false,
+    "antisticker": true,
+    "antitagsw": true,
     "openTime": null,
     "closeTime": null,
     "lockTime": null,

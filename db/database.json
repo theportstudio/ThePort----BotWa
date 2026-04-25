@@ -1,1 +1,28 @@
-{}
+{
+  "142391738638364": {
+    "name": "theport",
+    "userName": "ThePort",
+    "phoneNumber": "142391738638364",
+    "exp": 200,
+    "level": 1,
+    "rank": "Newbie",
+    "limit": 10,
+    "lastLimitReset": 1777096816948,
+    "uang": 0,
+    "status": "Free",
+    "firstChat": "120363410138856054@g.us"
+  },
+  "211334352380158": {
+    "name": "habibah",
+    "userName": "Hafshoh",
+    "phoneNumber": "211334352380158",
+    "exp": 80,
+    "level": 1,
+    "rank": "Newbie",
+    "limit": 7,
+    "lastLimitReset": 1777098368326,
+    "uang": 0,
+    "status": "Free",
+    "firstChat": "120363316685827896@g.us"
+  }
+}
