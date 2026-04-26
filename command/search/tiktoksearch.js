@@ -77,7 +77,7 @@ module.exports = {
               {
                 name: "cta_url",
                 buttonParamsJson: JSON.stringify({
-                  display_text: "Buka TikTok",
+                  display_text: "Buka",
                   url: item.url_nowm,
                   merchant_url: item.url_nowm
                 })

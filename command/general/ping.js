@@ -8,6 +8,7 @@ const path = require("path")
 module.exports = {
   name: "ping",
   alias: ["sysinfo", "status"],
+  loginRequired: false,
 
   async execute(ctx) {
     try {

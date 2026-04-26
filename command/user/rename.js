@@ -31,6 +31,14 @@ module.exports = {
       return ctx.reply("❌ Nama maksimal 20 karakter")
     }
 
+    const validNameRegex = /^[a-zA-Z0-9 _-]+$/
+
+    if (!validNameRegex.test(newName)) {
+      return ctx.reply(
+        "> 🚫 Tidak boleh ada emoji atau simbol lain"
+      )
+    }
+
     if (newName.toLowerCase() === ctx.user.name.toLowerCase()) {
       return ctx.reply("❌ Nama baru tidak boleh sama dengan nama lama")
     }
@@ -44,8 +52,7 @@ module.exports = {
 
     if (isNameUsed) {
       return ctx.reply(
-        `❌ Nama *${newName}* sudah digunakan user lain.\n` +
-        `Silakan pilih nama lain.`
+        `❌ Nama *${newName}* sudah digunakan user lain.\n` 
       )
     }
 

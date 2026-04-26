@@ -1,55 +1,37 @@
-const fs = require("fs")
-const path = require("path")
+const {
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  proto
+} = require("@whiskeysockets/baileys")
+
+const settings = require("../../settings")
 
 const PRICE_PER_LIMIT = 5000
 
-module.exports = {
-  name: "buy",
-  alias: ["beli", "shop"],
-  loginRequired: true,
-  category: "user",
+async function runBuyCommand(ctx) {
+  const { args, user, from, sock, msg, saveUserDB, db, userKey } = ctx
 
-  async execute(ctx) {
-    const { args, user, reply, saveUserDB, db, userKey } = ctx
+  const type = (args[1] || "").toLowerCase()
 
-    if (!args[0] || args[0].toLowerCase() !== "limit") {
-      const priceList = `
-╭──⊙ *TOKO LIMIT* 💰
-│ *Harga Limit:*
-│ • 1 Limit = Rp5.000
-│ • 5 Limit = Rp25.000
-│ • 10 Limit = Rp50.000
-│ • 50 Limit = Rp250.000
-│ • 100 Limit = Rp500.000
-╰──────────⊙
-╭──⊙ *Cara Pembelian:*
-│ .buy limit <jumlah>
-│
-│ *Contoh:*
-│ .buy limit 10
-│
-│ *Saldo Anda:* Rp${(user.uang || 0).toLocaleString()}
-│ *Limit Saat Ini:* ${user.limit || 0}
-╰──────────⊙`
+  if (type === "limit") {
+    const amount = parseInt(args[2])
 
-      return await reply(priceList)
-    }
-
-    const amount = parseInt(args[1])
-
-    if (!amount || isNaN(amount) || amount <= 0) {
-      return await reply("❌ Masukkan jumlah limit yang valid!\n\nContoh: .buy limit 10")
+    if (!amount || amount <= 0) {
+      return sock.sendMessage(from, {
+        text: "❌ Format salah\nContoh: .buy limit 10"
+      }, { quoted: msg })
     }
 
     const totalPrice = amount * PRICE_PER_LIMIT
 
     if ((user.uang || 0) < totalPrice) {
-      return await reply(
-        `❌ Uang tidak cukup!\n\n` +
-        `💰 Harga ${amount} limit: Rp${totalPrice.toLocaleString()}\n` +
-        `💳 Saldo Anda: Rp${(user.uang || 0).toLocaleString()}\n\n` +
-        `Kekurangan: Rp${(totalPrice - (user.uang || 0)).toLocaleString()}`
-      )
+      await sock.sendMessage(from, {
+        react: { text: "❌", key: msg.key }
+      })
+      return sock.sendMessage(from, {
+        text:
+          `❌ Uang tidak cukup\n💰 Harga: Rp${totalPrice.toLocaleString()}\n💳 Saldo: Rp${(user.uang || 0).toLocaleString()}`
+      }, { quoted: msg })
     }
 
     user.uang -= totalPrice
@@ -58,16 +40,94 @@ module.exports = {
     db[userKey] = user
     saveUserDB(db)
 
-    const successMsg = `
-╭──⊙ *PEMBELIAN BERHASIL* ✅
-│ 📦 Item: ${amount} Limit
-│ 💰 Harga: Rp${totalPrice.toLocaleString()}
-│ 💳 Sisa Saldo: Rp${user.uang.toLocaleString()}
-│ ⭐ Limit Sekarang: ${user.limit}
-╰──────────⊙
+    await sock.sendMessage(from, {
+      react: { text: "✅", key: msg.key }
+    })
 
-Terima kasih telah berbelanja! 🎉`
-
-    await reply(successMsg)
+    return sock.sendMessage(from, {
+      text:
+        `✅ PEMBELIAN BERHASIL\n\n` +
+        `📦 Limit +${amount}\n` +
+        `💰 Total: Rp${totalPrice.toLocaleString()}\n` +
+        `⭐ Total Limit: ${user.limit}`
+    }, { quoted: msg })
   }
+}
+
+async function execute(ctx) {
+  const { sock, from, msg, user } = ctx
+
+  await sock.sendMessage(from, {
+    react: {
+      text: "🛒",
+      key: msg.key
+    }
+  })
+
+  const packages = [10, 20, 50, 150, 500, 1000]
+
+  const cards = []
+
+  for (const qty of packages) {
+    const total = qty * PRICE_PER_LIMIT
+
+    const media = await prepareWAMessageMedia(
+      { image: { url: settings.menuImage } },
+      { upload: sock.waUploadToServer }
+    )
+
+    cards.push({
+      header: {
+        hasMediaAttachment: true,
+        ...media
+      },
+      body: {
+        text:
+          `⭐ PAKET ${qty} LIMIT\n` +
+          `💵 Rp${total.toLocaleString()}\n` +
+          `💰 Saldo: Rp${(user.uang || 0).toLocaleString()}`
+      },
+      footer: { text: "ThePort Marketplace" },
+      nativeFlowMessage: {
+        buttons: [
+          {
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({
+              display_text: `Beli ${qty} Limit`,
+              id: `BUY_LIMIT_${qty}`
+            })
+          }
+        ]
+      }
+    })
+  }
+
+  const msgContent = generateWAMessageFromContent(
+    from,
+    proto.Message.fromObject({
+      viewOnceMessage: {
+        message: {
+          interactiveMessage: {
+            body: { text: "🛍️ TOKO LIMIT" },
+            footer: { text: "ThePort Multi Device" },
+            header: { hasMediaAttachment: false },
+            carouselMessage: { cards }
+          }
+        }
+      }
+    }),
+    { quoted: msg }
+  )
+
+  await sock.relayMessage(from, msgContent.message, {
+    messageId: msgContent.key.id
+  })
+}
+
+module.exports = {
+  name: "buy",
+  alias: ["beli", "shop"],
+  loginRequired: true,
+  execute,
+  runBuyCommand
 }

@@ -204,6 +204,7 @@ const createMenuCanvas = async (userName, userJid, avatarPath, totalCmd, greetin
 module.exports = {
   name: "menu",
   alias: ["help", "cmd", "list"],
+  loginRequired: false,
 
   async execute(ctx) {
     let imgPath = null
@@ -355,7 +356,7 @@ module.exports = {
       } else {
         imgPath = await createMenuCanvas(userName, userJid, avatarPath, totalCmd, greeting)
 
-        let text = `Halo Selamatt ${greeting} kak  @${userJid.split("@")[0]}\n, dan Selamat datang di ThePort, silahkan pilih menu yang ingin di gunakan\n\n`
+        let text = `Halo Selamatt ${greeting} kak  @${userJid.split("@")[0]}\n, dan Selamat datang di ThePort, silahkan pilih menu yang ingin di gunakan\n\n*.about* >> Informasi Bot\n*.rules* >> Aturan Penggunaan\n*.owner* >> kontak owner/pembuat\n\n`
 
         text += `╭┈┈┈┈┈┈❀︎ *SYSTEM INFO*\n`
         text += `│  Date     : ${date}\n`
@@ -372,7 +373,7 @@ module.exports = {
         })
 
         text += `╰┈┈┈┈┈┈●\n\n`
-        text += `> Terima kasih telah menggunakan *${settings.botName}*`
+        text += `\n> Terima kasih telah menggunakan *${settings.botName}*`
 
         await ctx.sock.sendMessage(
           ctx.from,

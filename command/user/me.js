@@ -3,6 +3,10 @@ const path = require("path")
 const axios = require("axios")
 const { createCanvas, loadImage } = require("canvas")
 
+const formatRupiah = (num) => {
+  return Number(num || 0).toLocaleString("id-ID")
+}
+
 const makeProfileCard = async (data, avatarPath) => {
   const width = 1000
   const height = 650
@@ -120,7 +124,7 @@ const makeProfileCard = async (data, avatarPath) => {
   c.fillStyle = "#ffffff"
   c.font = "bold 18px Arial"
   c.fillText(
-    `${data.exp} / ${data.maxExp} XP`,
+    `${data.exp.toLocaleString("id-ID")} / ${data.maxExp.toLocaleString("id-ID")} XP`,
     300,
     340
   )
@@ -146,11 +150,11 @@ const makeProfileCard = async (data, avatarPath) => {
     },
     {
       title: "Limit",
-      value: data.limit
+      value: data.limit.toLocaleString("id-ID")
     },
     {
       title: "Money",
-      value: `Rp${data.uang}`
+      value: `Rp${formatRupiah(data.uang)}`
     }
   ]
 
@@ -300,9 +304,9 @@ module.exports = {
         `📊 STATISTIK\n\n` +
         `• Level: ${data.level}\n` +
         `• Rank: ${data.rank}\n` +
-        `• EXP: ${data.exp}/${data.maxExp}\n` +
-        `• Money: Rp${data.uang}\n` +
-        `• Limit: ${data.limit}`
+        `• EXP: ${data.exp.toLocaleString("id-ID")}/${data.maxExp.toLocaleString("id-ID")}\n` +
+        `• Money: Rp${formatRupiah(data.uang)}\n` +
+        `• Limit: ${data.limit.toLocaleString("id-ID")}`
 
       await ctx.sock.sendMessage(
         ctx.from,

@@ -4,6 +4,7 @@ module.exports = {
   name: "owner",
   alias: ["creator", "dev", "developer"],
   category: "general",
+  loginRequired: false,
 
   async execute(ctx) {
     try {
@@ -16,6 +17,11 @@ FN:${ownerName}
 N:${ownerName};;;
 TEL;type=CELL;waid=${ownerNumber}:+${ownerNumber}
 END:VCARD`
+
+        return ctx.reply(
+          "*! Berikut adalah kontak owner bot ini !*\n_Langsung ke intinya saja_",
+          { quoted: ctx.msg }
+        )
 
       await ctx.sock.sendMessage(
         ctx.from,

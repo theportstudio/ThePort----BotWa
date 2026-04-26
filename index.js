@@ -1,12 +1,13 @@
 const connectBot = require("./connect")
 const handler = require("./handler")
+const buyModule = require("./command/user/buy")
 
 async function start() {
   const sock = await connectBot()
 
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0]
-    if (!msg.message) return
+    if (!msg?.message) return
 
     await handler(sock, msg)
   })

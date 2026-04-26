@@ -2,6 +2,7 @@ const fs = require("fs")
 const path = require("path")
 const chalk = require("chalk")
 const settings = require("./settings")
+const buyModule = require("./command/user/buy")
 
 const activeGames = new Map()
 const groupDBPath = path.join(process.cwd(), "db/group_database.json")
@@ -173,10 +174,7 @@ async function sendWelcomeMessage(sock, groupId, participant, groupMetadata) {
   const groupDB = getGroupDB()
   const groupData = getGroupData(groupDB, groupId)
 
-  const participantJid = participant.includes("@s.whatsapp.net")
-    ? participant
-    : participant + "@s.whatsapp.net"
-
+  const participantJid = normalizeParticipantJid(participant, groupMetadata)
   const userNumber = cleanJid(participant)
   const groupName = groupMetadata?.subject || "Group"
 
@@ -186,46 +184,53 @@ async function sendWelcomeMessage(sock, groupId, participant, groupMetadata) {
   if (groupData?.customWelcome) {
     let customText = groupData.customWelcome
 
+    const admins = groupMetadata.participants
+      .filter(p => p.admin === "admin" || p.admin === "superadmin")
+
+    const adminMentions = admins.map(p => p.id)
+    const adminTags = admins.map(p => `@${cleanJid(p.id)}`)
+
+    const allMembers = groupMetadata.participants
+    const allMentions = allMembers.map(p => p.id)
+    const allTags = allMembers.map(p => `@${cleanJid(p.id)}`)
+
+    if (/<tag>|<user>/gi.test(customText)) {
+      mentions.push(participantJid)
+    }
+
+    if (/<admin>/gi.test(customText)) {
+      mentions.push(...adminMentions)
+    }
+
+    if (/<alltag>/gi.test(customText)) {
+      mentions.push(...allMentions)
+    }
+
     customText = customText.replace(/<tag>/gi, `@${userNumber}`)
     customText = customText.replace(/<user>/gi, `@${userNumber}`)
     customText = customText.replace(/<username>/gi, userNumber)
     customText = customText.replace(/<group-name>/gi, groupName)
-
-    const admins = groupMetadata.participants
-      .filter(p => p.admin === "admin" || p.admin === "superadmin")
-      .map(p => `@${cleanJid(p.id)}`)
-
-    const allMembers = groupMetadata.participants
-      .map(p => `@${cleanJid(p.id)}`)
-
-    customText = customText.replace(/<admin>/gi, admins.join(" "))
-    customText = customText.replace(/<alltag>/gi, allMembers.join(" "))
+    customText = customText.replace(/<admin>/gi, adminTags.join(" "))
+    customText = customText.replace(/<alltag>/gi, allTags.join(" "))
 
     messageText = customText
-
-    mentions.push(participantJid)
-
-    const allMentions = groupMetadata.participants.map(p => p.id)
-    mentions = [...new Set([...mentions, ...allMentions])]
   } else {
     messageText = `Welcome to ${groupName}\n@${userNumber}`
     mentions.push(participantJid)
-
-    const allMentions = groupMetadata.participants.map(p => p.id)
-    mentions = [...new Set([...mentions, ...allMentions])]
   }
 
   await sock.sendMessage(groupId, {
     text: messageText,
-    mentions: mentions,
+    mentions: [...new Set(mentions)],
     contextInfo: {
+      mentionedJid: [...new Set(mentions)],
       externalAdReply: {
         title: "Welcome 👋",
         body: groupName,
         thumbnailUrl: settings.menuImage,
         mediaType: 1,
         renderLargerThumbnail: true,
-        sourceUrl: "https://fareldev.vercel.app   "
+        sourceUrl: "https://fareldev.vercel.app    "
       }
     }
   })
@@ -245,46 +250,53 @@ async function sendOutMessage(sock, groupId, participant, groupMetadata) {
   if (groupData?.customOut) {
     let customText = groupData.customOut
 
+    const admins = groupMetadata.participants
+      .filter(p => p.admin === "admin" || p.admin === "superadmin")
+
+    const adminMentions = admins.map(p => p.id)
+    const adminTags = admins.map(p => `@${cleanJid(p.id)}`)
+
+    const allMembers = groupMetadata.participants
+    const allMentions = allMembers.map(p => p.id)
+    const allTags = allMembers.map(p => `@${cleanJid(p.id)}`)
+
+    if (/<tag>|<user>/gi.test(customText)) {
+      mentions.push(participantJid)
+    }
+
+    if (/<admin>/gi.test(customText)) {
+      mentions.push(...adminMentions)
+    }
+
+    if (/<alltag>/gi.test(customText)) {
+      mentions.push(...allMentions)
+    }
+
     customText = customText.replace(/<tag>/gi, `@${userNumber}`)
     customText = customText.replace(/<user>/gi, `@${userNumber}`)
     customText = customText.replace(/<username>/gi, userNumber)
     customText = customText.replace(/<group-name>/gi, groupName)
-
-    const admins = groupMetadata.participants
-      .filter(p => p.admin === "admin" || p.admin === "superadmin")
-      .map(p => `@${cleanJid(p.id)}`)
-
-    const allMembers = groupMetadata.participants
-      .map(p => `@${cleanJid(p.id)}`)
-
-    customText = customText.replace(/<admin>/gi, admins.join(" "))
-    customText = customText.replace(/<alltag>/gi, allMembers.join(" "))
+    customText = customText.replace(/<admin>/gi, adminTags.join(" "))
+    customText = customText.replace(/<alltag>/gi, allTags.join(" "))
 
     messageText = customText
-
-    mentions.push(participantJid)
-
-    const allMentions = groupMetadata.participants.map(p => p.id)
-    mentions = [...new Set([...mentions, ...allMentions])]
   } else {
-    messageText = `@${userNumber}\nLeaving From ${groupName}`
+    messageText = `@${userNumber}\nLeaving from ${groupName}`
     mentions.push(participantJid)
-
-    const allMentions = groupMetadata.participants.map(p => p.id)
-    mentions = [...new Set([...mentions, ...allMentions])]
   }
 
   await sock.sendMessage(groupId, {
     text: messageText,
-    mentions: mentions,
+    mentions: [...new Set(mentions)],
     contextInfo: {
+      mentionedJid: [...new Set(mentions)],
       externalAdReply: {
         title: "Goodbye 👋",
         body: groupName,
         thumbnailUrl: settings.menuImage,
         mediaType: 1,
         renderLargerThumbnail: true,
-        sourceUrl: "https://fareldev.vercel.app   "
+        sourceUrl: "https://fareldev.vercel.app"
       }
     }
   })
@@ -373,6 +385,47 @@ const messageHandler = async (sock, msg) => {
     const groupDB = getGroupDB()
     const groupData = getGroupData(groupDB, from)
 
+    const buyButtonId =
+      msg.message?.buttonsResponseMessage?.selectedButtonId ||
+      msg.message?.templateButtonReplyMessage?.selectedId ||
+      msg.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+      msg.message?.buttonsResponseMessage?.selectedDisplayText
+
+    if (buyButtonId) {
+      const normalizedButtonId = String(buyButtonId)
+      if (normalizedButtonId.startsWith("BUY_LIMIT_")) {
+        const amount = parseInt(normalizedButtonId.split("_")[2])
+        if (!isNaN(amount) && amount > 0) {
+          const phoneNumber = extractPhoneNumber(sender)
+          const userKey = phoneNumber
+          const user = db[userKey] || null
+
+          if (!user) {
+            await sock.sendMessage(from, {
+              text:
+                "❌ Kamu belum terdaftar. Silakan daftar dulu dengan:\n" +
+                `*.login ${pushName || "User"}`
+            }, { quoted: msg })
+          } else {
+            await sock.sendMessage(from, {
+              react: { text: "🛍️", key: msg.key }
+            })
+            await buyModule.runBuyCommand({
+              from,
+              args: [".buy", "limit", amount],
+              msg,
+              sock,
+              db,
+              user,
+              userKey,
+              saveUserDB
+            })
+          }
+          return
+        }
+      }
+    }
+
     if (from.endsWith("@g.us") && !isFromMe) {
       try {
         const groupMetadata = await sock.groupMetadata(from)
@@ -410,47 +463,50 @@ const messageHandler = async (sock, msg) => {
         console.log("BOT PARTICIPANT:", botParticipant)
         console.log("BOT ADMIN STATUS:", isBotAdmin)
 
-        if (groupData.antilink && text) {
-          const linkRegex = /(https?:\/\/|www\.)?(chat\.whatsapp\.com\/[A-Za-z0-9]+|wa\.me\/[0-9]+|whatsapp\.com\/[A-Za-z0-9]+)/gi
+const groupAdmins = groupMetadata.participants
+  .filter(p => p.admin !== null)
+  .map(p => p.id)
 
-          if (linkRegex.test(text)) {
-            if (!isBotAdmin) {
-              console.log("Bot bukan admin, tidak bisa hapus pesan")
-              return
-            }
+const isAdmin = groupAdmins.includes(sender)
 
-            try {
-              const deleteParticipant =
-                msg.key.participant ||
-                msg.participant ||
-                msg.key.remoteJid
+if (groupData.antilink && text) {
+  const linkRegex = /(https?:\/\/|www\.)?(chat\.whatsapp\.com\/[A-Za-z0-9]+|wa\.me\/[0-9]+|whatsapp\.com\/[A-Za-z0-9]+)/gi
 
-              console.log("DELETE TARGET:", {
-                remoteJid: from,
-                id: msg.key.id,
-                participant: deleteParticipant
-              })
+  if (linkRegex.test(text)) {
+    // admin boleh kirim link
+    if (isAdmin) return
 
-              await sock.sendMessage(from, {
-                delete: {
-                  remoteJid: from,
-                  fromMe: false,
-                  id: msg.key.id,
-                  participant: deleteParticipant
-                }
-              })
+    if (!isBotAdmin) {
+      console.log("Bot bukan admin, tidak bisa hapus pesan")
+      return
+    }
 
-              await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Link tidak diizinkan di group ini!`,
-                mentions: [sender]
-              })
+    try {
+      const deleteParticipant =
+        msg.key.participant ||
+        msg.participant ||
+        msg.key.remoteJid
 
-              return
-            } catch (err) {
-              console.log("Gagal menghapus pesan:", err)
-            }
-          }
+      await sock.sendMessage(from, {
+        delete: {
+          remoteJid: from,
+          fromMe: false,
+          id: msg.key.id,
+          participant: deleteParticipant
         }
+      })
+
+      await sock.sendMessage(from, {
+        text: `⚠️ Maaf @${sender.split("@")[0]} Pesan mu saya hapus, Link tidak diizinkan di group ini!`,
+        mentions: [sender]
+      })
+
+      return
+    } catch (err) {
+      console.log("Gagal menghapus pesan:", err)
+    }
+  }
+}
 
         if (groupData.antivirtex && text) {
           const virtexPatterns = [
@@ -493,7 +549,7 @@ const messageHandler = async (sock, msg) => {
               })
 
               await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Virtex / teks berbahaya terdeteksi dan telah dihapus!`,
+                text: `⚠️ Maaf @${sender.split("@")[0]} Virtex / teks berbahaya terdeteksi dan akan dihapus!`,
                 mentions: [sender]
               })
 
@@ -538,7 +594,7 @@ const messageHandler = async (sock, msg) => {
               })
 
               await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Media tidak diizinkan! Hanya view once yang diperbolehkan.`,
+                text: `⚠️ Maaf @${sender.split("@")[0]} Media tidak diizinkan! Hanya pesan 1x lihat yang diperbolehkan.`,
                 mentions: [sender]
               })
 
@@ -577,7 +633,7 @@ const messageHandler = async (sock, msg) => {
             })
 
             await sock.sendMessage(from, {
-              text: `⚠️ @${sender.split("@")[0]} Sticker tidak diizinkan di group ini!`,
+              text: `⚠️ Maaf @${sender.split("@")[0]} Sticker tidak diizinkan di group ini!`,
               mentions: [sender]
             })
 
@@ -626,7 +682,7 @@ const messageHandler = async (sock, msg) => {
               })
 
               await sock.sendMessage(from, {
-                text: `⚠️ @${sender.split("@")[0]} Tag status WhatsApp (SW) tidak diperbolehkan di grup ini!`,
+                text: `⚠️ Maaf @${sender.split("@")[0]} Tag status WhatsApp (SW) tidak diperbolehkan di grup ini!`,
                 mentions: [sender]
               })
 
@@ -1002,7 +1058,7 @@ const messageHandler = async (sock, msg) => {
       await command.code(ctx)
     }
 
-    if (!isExempt && !isFromMe) {
+    if (!isExempt && !isOwner && !isFromMe && !isPremium) {
       user.limit -= 1
       console.log(chalk.yellow(`[LIMIT] ${phoneNumber} | ${command.name} | Limit: ${user.limit}`))
     }

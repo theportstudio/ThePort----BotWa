@@ -29,12 +29,7 @@ module.exports = {
 
     if (!allowedPattern.test(name)) {
       return ctx.reply(
-        "❌ Nama hanya boleh mengandung:\n" +
-        "- huruf (a-z)\n" +
-        "- angka (0-9)\n" +
-        "- underscore (_)\n" +
-        "- strip (-)\n\n" +
-        "🚫 Tidak boleh ada emoji atau simbol lain"
+        "> 🚫 Tidak boleh ada emoji atau simbol lain"
       )
     }
 
@@ -73,7 +68,7 @@ module.exports = {
       `👤 Nama : *${name}*\n` +
       `📱 ID : *${phoneNumber}*\n` +
       `💎 Status : *Free*\n\n` +
-      "Data tersimpan permanen 🎉"
+      "Welcome anda berhasil.login 🎉\n> Silahkan ketik *.menu* untuk melihat semua daftar fitur."
     )
   }
 }
